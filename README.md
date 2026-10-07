@@ -1,6 +1,6 @@
 # ObjectDetectionOnnxRT
 
-> **当前分支：tiny** —— 推理引擎为 OpenCV 自带 dnn（无需 onnxruntime）；main 分支使用 onnxruntime。两分支的模型/类别文件通用。
+> **当前分支：tiny** —— 推理引擎为 OpenCV 自带 dnn（无需 onnxruntime）；main 分支使用 onnxruntime。Tiny的模型/类别文件可以在main分支中使用，但是main分支中的模型文件不能在Tiny分支中使用（Floor算子的问题）。
 
 **实时目标检测桌面应用** —— Qt6 界面 + OpenCV 解码与后处理 + OpenCV dnn 推理，
 三线程架构，模型与类别文件可随时更换（不限于烟雾火焰，任何 YOLOv5 格式的 onnx 检测模型均可）。
