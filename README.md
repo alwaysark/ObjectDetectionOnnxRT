@@ -1,6 +1,6 @@
 # ObjectDetectionOnnxRT
 
-> **当前分支：tiny** —— 推理引擎为 OpenCV 自带 dnn（无需 onnxruntime）；main 分支使用 onnxruntime。Tiny的模型/类别文件可以在main分支中使用，但是main分支中的模型文件不能在Tiny分支中使用（Floor算子的问题）。
+> **当前分支：tiny** —— 推理引擎为 OpenCV 自带 dnn（无需 onnxruntime）；main 分支使用 onnxruntime。但是main分支中的模型文件不能在Tiny分支中使用（Floor算子的问题）。
 
 **实时目标检测桌面应用** —— Qt6 界面 + OpenCV 解码与后处理 + OpenCV dnn 推理，
 三线程架构，模型与类别文件可随时更换（不限于烟雾火焰，任何 YOLOv5 格式的 onnx 检测模型均可）。
@@ -70,7 +70,7 @@ cmake --build cmake-build-debug-msvc
 
 ## 使用
 
-1. 输入页选择视频/图片、onnx 模型（自动配对同名类别 txt，如 `m0.9.onnx` → `m0.9.txt`）
+1. 输入页选择视频/图片、onnx 模型（自动配对同名类别 txt，如 `M0.9.onnx` → `M0.9.txt`）
 2. 输出页调整阈值、锚框、录制选项
 3. 点"开始检测"；点"停止"回到预览态，视频播完自动结束
 
@@ -81,7 +81,7 @@ cmake --build cmake-build-debug-msvc
 本项目按 **YOLOv5 检测头输出布局** `[1, 25200, 4+1+nc]`（候选×(框+obj置信度+类别分)）解析结果。
 更换模型时必须保持该布局（YOLOv5 系列 onnx 均可；YOLOv8/11 输出布局不同，需改后处理）。
 
-### 附带模型 `need/best.onnx`
+### 附带模型 `need/L0.9.onnx`
 
 | 项 | 值 |
 |---|---|

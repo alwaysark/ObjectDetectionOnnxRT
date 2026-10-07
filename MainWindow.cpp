@@ -370,8 +370,8 @@ void MainWindow::do_XuanZeWenJian_clicked() {
     m_Detection->StartThread();
 }
 
-// 选择权重：选完顺手找同名类别文件自动填（m0.9.onnx → m0.9.txt）
-// 用 completeBaseName 保留 "m0.9" 的点号 —— Python 版 split('.') 丢点号的 bug 在这修复
+// 选择权重：选完顺手找同名类别文件自动填（M0.9.onnx → M0.9.txt）
+// 用 completeBaseName 保留 "M0.9" 的点号 —— Python 版 split('.') 丢点号的 bug 在这修复
 void MainWindow::do_XuanZeQuanZhong_clicked() {
     const QString path = QFileDialog::getOpenFileName(this, "选择模型",
             m_QuanZhong->text(), "ONNX 模型 (*.onnx)");
