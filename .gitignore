@@ -1,0 +1,19 @@
+# 构建产物
+cmake-build-*/
+build/
+out/
+
+# IDE
+.idea/
+.vs/
+.vscode/
+
+# 测试视频（体积大，自行放置到 need/data/）
+need/data/
+
+# 用户运行时输出
+*.mp4
+ScreenShot_*
+log_*
+need/best.pt
+need/*.pt
