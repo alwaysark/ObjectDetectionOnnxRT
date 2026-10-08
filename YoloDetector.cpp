@@ -43,28 +43,24 @@ std::vector<DetectionResult> YoloDetector::detect(cv::Mat& frame) {
                 cv::Size(m_inputW, m_inputH), cv::Scalar(), false, false, CV_32F);
 
         // ===== 推理 =====
+        // 按名字直接取最终输出层。绝不能先跑无名 forward() 再"体检重取"——
+        // 那等于每次推理跑两遍（实测 L0.9：无名 748ms + 重取 474ms）；
+        // 直接 forward("output") 一遍就完（实测 375ms），OpenCV 会自动跳过无关分支。
         m_net.setInput(blob);
-        output = m_net.forward();
+        output = m_net.forward("output");
     } catch (const cv::Exception& e) {
         return results;                    // 推理出错：放弃本帧，不逃逸到调用方
     }
 
-    // ===== 多输出模型防御：确认拿到的是"最终候选表" =====
-    // 实测（探针）：v6.0 导出的 best.onnx 有 4 个输出层，无名字 forward() 返回拓扑序
-    // 第一个——P5 检测头中间结果 [1,3,20,20,7]（dims=5），不是我们要的 [1,25200,7]。
-    // 终输出指纹（四个条件同时满足才认）：
-    //   dims==3          排掉一切中间层（实测 dims=5）
-    //   size[0]==1       batch 恒为 1
-    //   size[2]==类别数+5 末列 = 4框 + 1obj + nc类别分（换模型自适应，不写死 7）
-    //   size[1]>1000     行数是候选量级（25200），不是格子量级（80/40/20）
+    // ===== 终输出形状防御（只在异常模型上触发重取）=====
+    // 预期 [1, 25200, 7]。指纹四个条件：dims==3、batch==1、
+    // 末列==类别数+5、行数为候选量级。不满足才走按名重取（老模型输出名可能不同）。
     const bool isFinal =
             output.dims == 3
             && output.size[0] == 1
             && output.size[2] == static_cast<int>(m_classNames.size()) + 5
             && output.size[1] > 1000;
     if (!isFinal) {
-        // 不是终输出 → 按名字重取：优先精确匹配 "output"（YOLOv5 导出的固定名），
-        // 找不到就取输出列表末尾（拓扑序中最终拼接结果天然在最后）
         std::string bestName;
         for (const cv::String& n : m_net.getUnconnectedOutLayersNames())
             if (n == "output") { bestName = n; break; }
