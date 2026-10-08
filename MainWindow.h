@@ -46,11 +46,11 @@ private:
     void bindSignal();
 
     // ---- 内部辅助 ----
-    void displayLog(const QString &text, const QString &color = "black"); // 带时间戳写日志
-    void setRunningUi(bool running);                // 检测中禁用/恢复按钮
+    void displayLog(const QString &text, const QString &color = "black");   // 带时间戳写日志
+    void setRunningUi(bool running);                    // 检测中禁用/恢复按钮
     QString loadClassFile(const QString &path) const;   // 读类别文件 → "fire,smoke"（剥序号）
-    void loadConfig();                              // 启动时恢复上次设置（QSettings）
-    void saveConfig();                              // 关窗时保存设置
+    void loadConfig();      // 启动时恢复上次设置（QSettings）
+    void saveConfig();      // 关窗时保存设置
 
 private:
     Detection *m_Detection = nullptr;               //检测线程
@@ -82,13 +82,13 @@ private slots:
     void do_JieTu_clicked();
 
     // ---- 检测线程信号的目标槽（跨线程排队连接，主线程执行）----
-    void do_frameReady(const QImage &img);                        //显示检测画面
-    void do_resultReady(const std::vector<DetectionResult> &r);   //结果写日志
-    void do_targetDetected();                                    //警报（带 5 秒冷却）
-    void do_errorOccurred(const QString &msg);                    //红字日志 + 按钮复位
-    void do_sourceFinished();                                     //源播完 + 按钮复位
-    void do_sourceOpened(const QString &desc);                    //日志
-    void do_infoMessage(const QString &msg);                      //一般提示日志
+    void do_frameReady(const QImage &img);                          //显示检测画面
+    void do_resultReady(const std::vector<DetectionResult> &r);     //结果写日志
+    void do_targetDetected();                                       //警报（带 5 秒冷却）
+    void do_errorOccurred(const QString &msg);                      //红字日志 + 按钮复位
+    void do_sourceFinished();                                       //源播完 + 按钮复位
+    void do_sourceOpened(const QString &desc);                      //日志
+    void do_infoMessage(const QString &msg);                        //一般提示日志
 
 private:
     //主区域

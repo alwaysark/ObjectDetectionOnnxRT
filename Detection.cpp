@@ -1,7 +1,5 @@
-//
-// Detection 实现。run() 的循环结构是全程序的心脏，建议对照
-// Python 版 DetectThread.main() 的 for img, path in self.dataset 循环读。
-//
+
+
 #include "Detection.h"
 #include <QDebug>
 #include <QDateTime>
@@ -17,13 +15,13 @@ Detection::Detection(QObject* parent) : QThread(parent) {
 
 Detection::~Detection() {
     m_isDetecting = false;
-    m_isRunning = false;     // run() 循环最多 200ms 内退出（read 的等待超时兜底）
+    m_isRunning = false;
     wait();                  // 等线程真正结束，防止对象销毁时线程还在跑
 }
 
 // ---------- 线程生命周期 ----------
 void Detection::StartThread() {
-    if (isRunning()) return;      // 防重入：QThread 重复 start 只是警告，但语义上也不该重启
+    if (isRunning()) return;      // 防重入
     m_isRunning = true;
     start();                      // start() 内部会新开系统线程并调用 run()
 }
@@ -31,11 +29,16 @@ void Detection::StartThread() {
 void Detection::StopThread() {
     m_isDetecting = false;
     m_isRunning = false;
-    // 不在这里直接碰 m_Source —— 它属于检测线程。run() 每圈最多 200ms 醒一次，
+    // 不在这里直接碰 m_Source —— 它属于检测线程。run() 每圈最多约 200ms 醒一次，
     // 看到 m_isRunning=false 就走收尾逻辑（关源、关录像）后自然退出
 }
 
 // ---------- 请求信箱（UI 线程调用） ----------
+// 为什么要用m_srcPath和m_cfg倒一手配置信息？
+// ——因为检测线程里run函数中循环检测每一帧，循环期间必须保证他所调用的VideoSource对象和YoloDetector对象没有被销毁，
+// 直到下一次循环开始，再检测有没有新的源或者模型（m_srcRequested和m_cfgRequested标志为true），
+// 然后销毁旧的构造新的VideoSource对象和YoloDetector对象，如果直接从ui线程传过来配置信息立马就构造源对象和模型对象，
+// 那么此时run的循环可能还在运行呢，旧的对象被被销毁了，程序出错
 void Detection::requestSource(SourceType type, const QString& path) {
     std::lock_guard<std::mutex> lk(m_srcMtx);   // 信箱必须持锁投递（QString 非原子）
     m_srcType = type;
@@ -58,7 +61,7 @@ void Detection::setBoxColor(const cv::Scalar& rgb) {
 
 // ---------- 换源信箱的消费（仅检测线程调用） ----------
 void Detection::applySourceRequest() {
-    // 先把信箱内容取出来并清标志（持锁时间越短越好）
+    // 先把信箱内容取出来并清标志
     QString path;
     {
         std::lock_guard<std::mutex> lk(m_srcMtx);
@@ -71,15 +74,14 @@ void Detection::applySourceRequest() {
         return;
     }
 
-    // 旧源在这里被 make_unique 覆盖销毁。此刻本线程不在 read() 里，
-    // 所以销毁是安全的 —— 这就是"换源由检测线程自己动手"的好处
+    // 旧源在这里被 make_unique 覆盖销毁。此刻本线程不在 read() 里，所以销毁是安全的
     m_Source = std::make_unique<VideoSource>();
     if (!m_Source->open(path.toStdString())) {
         emit errorOccurred(QString("无法打开输入源：%1").arg(path));
         m_Source.reset();         // 回到"无源待命"状态
         return;
     }
-    stopRecord();                 // 换源 = 上一段录像作结
+    stopRecord();                 // 换源 = 上一段录像结束录制
     emit sourceOpened(QString::fromStdString(m_Source->path()));
 }
 
@@ -92,7 +94,7 @@ void Detection::applyDetectRequest() {
         m_cfgRequested = false;
     }
 
-    // 与 Python start() 一致：每次开始都重建模型（模型不大，重建比增量配置省心）
+    // 每次开始都重建模型
     m_Mode = std::make_unique<YoloDetector>();
     QString err;
     if (!m_Mode->load(cfg.modelPath, &err)) {
@@ -107,7 +109,7 @@ void Detection::applyDetectRequest() {
     m_Mode->setDrawBox(m_drawBox.load());
     {
         std::lock_guard<std::mutex> lk(m_colorMtx);
-        m_boxColor = cfg.boxColor;      // 框颜色是 3 个数的组合，走锁不走 atomic
+        m_boxColor = cfg.boxColor;      // 框颜色是多字节组合，用锁不用 atomic
     }
     m_Mode->setBoxColor(cfg.boxColor);
 
@@ -159,11 +161,11 @@ void Detection::run() {
             m_Mode->setBoxColor(color);
         }
 
-        // ===== ④ 取帧（read 返回 false ≙ Python 的 StopIteration）=====
+        // ===== ④ 取帧 =====
         cv::Mat frame;
         if (!m_Source->read(frame)) {
             emit sourceFinished();
-            stopRecord();
+            stopRecord();         //停止录像
             m_Source.reset();     // 回到无源待命（Python 版这里停整个线程，我们常驻更稳）
             continue;
         }
@@ -176,11 +178,12 @@ void Detection::run() {
             // 推理 + 画框（结果直接画在 frame 上，一份数据两用：显示和录制）
             std::vector<DetectionResult> results = m_Mode->detect(frame);
 
-            // 警报：连续 10 帧检测到任意目标 → 发警报信号
-            // （换模型/换类别后语义不变：只要 results 非空就算"有目标"，
-            //   不写死任何类别名——哪类算危险是类别文件决定的，不是代码决定的）
+            // 警报：连续 10 帧检出任意目标 → 发警报信号
             if (!results.empty()) {
-                if (++m_alarmStreak >= 10) { emit targetDetected(); m_alarmStreak = 0; }
+                if (++m_alarmStreak >= 10) {
+                    emit targetDetected();
+                    m_alarmStreak = 0;
+                }
             } else {
                 m_alarmStreak = 0;
             }
@@ -210,7 +213,7 @@ void Detection::run() {
         // ===== ⑥ FPS 统计与显示 =====
         ++fpsCount;
         const double elapsed = duration<double>(steady_clock::now() - fpsStart).count();
-        if (elapsed >= 2.0) {          // 每 2 秒结算一次平均帧率（Python 同款周期）
+        if (elapsed >= 2.0) {          // 每 2 秒结算一次平均帧率
             shownFps = fpsCount / elapsed;
             fpsCount = 0;
             fpsStart = steady_clock::now();
@@ -223,7 +226,7 @@ void Detection::run() {
         }
 
         // ===== ⑦ 发帧给界面 =====
-        // cv::Mat → QImage：指定每行字节数(step) 构造，然后 copy() 深拷贝。
+        // cv::Mat → QImage：按每行字节数(step) 构造，再 copy() 深拷贝。
         // 不 copy 的话 frame 复用缓冲后界面拿到的就是脏数据（悬垂指针的经典坑）
         QImage img(frame.data, frame.cols, frame.rows,
                    static_cast<int>(frame.step), QImage::Format_RGB888);

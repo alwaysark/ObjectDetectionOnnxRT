@@ -36,7 +36,7 @@
 #include "Detection.h"
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
-    m_Detection = new Detection(this);      //父对象机制：主窗口销毁时自动 delete
+    m_Detection = new Detection(this);      // 父对象机制：主窗口销毁时自动 delete
     buildUi();
     bindSignal();
 
@@ -45,16 +45,16 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     m_JingBao->setSource(QUrl::fromLocalFile(
             QCoreApplication::applicationDirPath() + "/need/JingBao/alarm.wav"));
     m_JingBao->setVolume(0.9f);
-    m_JingBaoLengQue.invalidate();          //计时器先置为"无效"，第一次警报立刻可响
+    m_JingBaoLengQue.invalidate();          // 计时器先置为"无效"，第一次警报立刻可响
 
-    loadConfig();                           //恢复上次的界面设置
+    loadConfig();                           // 恢复上次的界面设置
 
     displayLog("就绪。选择输入源，或直接点\"开始检测\"（默认打开 0 号摄像头）");
 }
 
 MainWindow::~MainWindow() = default;
 
-// ==================== 界面搭建（手写布局，对应 Python setupUi） ====================
+// ==================== 界面搭建（手写布局，对应 Python 的 setupUi） ====================
 void MainWindow::buildUi() {
     setWindowTitle(QStringLiteral("ObjectDetection OnnxRT — 实时目标检测"));
     resize(900,500);
@@ -265,10 +265,9 @@ void MainWindow::bindSignal() {
 }
 
 // ==================== 槽函数：操作区 ====================
-// "开始检测"：对应 Python start()。
-// 职责：校验 → 打包配置塞进信箱 → 确保源已打开 → 启动推理
+// 校验 → 打包配置投进信箱 → 确保源已打开 → 启动推理
 void MainWindow::do_KaiShi_clicked() {
-    // ① 校验权重文件（便宜检查在这里同步做，昂贵/易错的打开动作交给线程）
+    // ① 校验权重文件（廉价的检查同步做，昂贵/易错的打开动作交给线程）
     const QString model = m_QuanZhong->text().trimmed();
     if (model.isEmpty() || !QFile::exists(model)) {
         displayLog(QString("\"%1\" 模型文件不存在").arg(model), "red");
@@ -309,14 +308,14 @@ void MainWindow::do_KaiShi_clicked() {
     cfg.saveDir = m_BaoCun->text();
     m_Detection->requestDetect(cfg);
 
-    // ④ 起飞：线程没跑就启动；把推理开关拨到"开"
+    // ④ 起飞：线程没跑就启动，再把推理开关拨到"开"
     m_Detection->StartThread();
     m_Detection->BeginDetect();
     setRunningUi(true);
     displayLog("开始检测");
 }
 
-// "停止检测"：对应 Python stop()。只关推理，预览继续（再点开始不用重开源）
+// "停止检测"。只关推理，预览继续（再点开始不用重开源）
 void MainWindow::do_TingZhi_clicked() {
     m_Detection->StopDetect();
     setRunningUi(false);
@@ -370,8 +369,8 @@ void MainWindow::do_XuanZeWenJian_clicked() {
     m_Detection->StartThread();
 }
 
-// 选择权重：选完顺手找同名类别文件自动填（M0.9.onnx → M0.9.txt）
-// 用 completeBaseName 保留 "M0.9" 的点号 —— Python 版 split('.') 丢点号的 bug 在这修复
+// 选择权重：选完顺手找同名类别文件自动填（M0.9.onnx → M0.9.txt）。
+// 用 completeBaseName 保留 "M0.9" 的点号 —— Python 版 split('.') 会把点号当分隔符丢掉
 void MainWindow::do_XuanZeQuanZhong_clicked() {
     const QString path = QFileDialog::getOpenFileName(this, "选择模型",
             m_QuanZhong->text(), "ONNX 模型 (*.onnx)");
@@ -381,8 +380,8 @@ void MainWindow::do_XuanZeQuanZhong_clicked() {
     const QFileInfo info(path);
     const QString base = info.completeBaseName();
     const QStringList candidates {
-            info.dir().filePath(base + ".txt"),            //和模型同目录
-            info.dir().filePath("../" + base + ".txt"),    //或上一级（Python 版的约定）
+            info.dir().filePath(base + ".txt"),            // 和模型同目录
+            info.dir().filePath("../" + base + ".txt"),    // 或上一级
     };
     for (const QString &c : candidates) {
         if (QFile::exists(c)) {
@@ -393,7 +392,7 @@ void MainWindow::do_XuanZeQuanZhong_clicked() {
     }
 }
 
-// 选择类别文件：读文件 → 统一分隔符 → 剥序号 → 填进编辑框（对应 Python changeClassFile）
+// 选择类别文件：读文件 → 统一分隔符 → 剥序号 → 填进编辑框
 void MainWindow::do_XuanZeLeiBie_clicked() {
     const QString path = QFileDialog::getOpenFileName(this, "选择类别文件",
             QString(), "类别文件 (*.txt)");
@@ -403,7 +402,6 @@ void MainWindow::do_XuanZeLeiBie_clicked() {
 }
 
 // 读类别文件：兼容换行/逗号/中文逗号/竖线分隔，剥掉 "1 fire" 这种行号前缀
-// （Python 原版没剥序号，类别名变成 "1 fire"，导致警报的 fire 匹配永远失败）
 QString MainWindow::loadClassFile(const QString &path) const {
     QFile f(path);
     if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) return {};
@@ -455,7 +453,7 @@ void MainWindow::do_MaoKuangYanSe_clicked() {
     m_Detection->setBoxColor(cv::Scalar(c.red(), c.green(), c.blue()));
 }
 
-// 录制相关：勾选/帧率只在"开始检测"时打包进配置，改动即时生效需要热更新，此处保持简单
+// 录制开关/帧率只在点"开始检测"时打包进配置；运行中改动要重开检测才生效，槽暂留空
 void MainWindow::do_LuZhiShiPin_StateChanged(Qt::CheckState) {}
 
 void MainWindow::do_LuZhiZhenLv_valueChanged(int) {}
@@ -475,7 +473,7 @@ void MainWindow::do_XuanZeLuJiing_clicked() {
     if (!dir.isEmpty()) m_BaoCun->setText(dir);
 }
 
-// 截图：把当前显示画面存成 png（对应 Python saveToFile(BaoCunJieTu)）
+// 截图：把当前显示画面存成 png
 void MainWindow::do_JieTu_clicked() {
     const QPixmap pm = m_TuXiangShuChu->pixmap();   // Qt 6.8 起 pixmap() 按值返回
     if (pm.isNull()) return;
@@ -505,7 +503,7 @@ void MainWindow::do_BaoCunRiZhi_clicked() {
 }
 
 // ==================== 内部辅助 ====================
-// 带时间戳写一行日志（对应 Python displayLog：时间头 + 颜色 + 底部跟随）
+// 带时间戳写一行日志
 void MainWindow::displayLog(const QString &text, const QString &color) {
     const QString head = QTime::currentTime().toString("HH:mm:ss.zzz") + " >> ";
     m_RiZhi->append(QString("<font color='%1'>%2%3</font>")
@@ -518,13 +516,13 @@ void MainWindow::displayLog(const QString &text, const QString &color) {
 }
 
 // ==================== 检测线程信号的接收槽 ====================
-// 显示画面：QImage → QPixmap，按标签大小等比缩放（对应 Python displayImg）
+// 显示画面：QImage → QPixmap，按标签大小等比缩放
 void MainWindow::do_frameReady(const QImage &img) {
     m_TuXiangShuChu->setPixmap(QPixmap::fromImage(img).scaled(
             m_TuXiangShuChu->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
 }
 
-// 检测结果 → 日志。按类别分组显示（对应 Python 把 dict 打印出来的效果）：
+// 检测结果 → 日志。按类别分组显示
 // fire ×2 (85.3%, 71.0%)；smoke ×1 (66.2%)
 void MainWindow::do_resultReady(const std::vector<DetectionResult> &results) {
     if (!m_printResult) return;
@@ -532,7 +530,7 @@ void MainWindow::do_resultReady(const std::vector<DetectionResult> &results) {
         displayLog("未检测到目标");
         return;
     }
-    QMap<QString, QVector<double>> grouped;      //label → 各目标的置信度百分数
+    QMap<QString, QVector<double>> grouped;      // label → 各目标的置信度百分数
     for (const auto &r : results)
         grouped[QString::fromStdString(r.label)].append(r.score * 100.0);
     QStringList parts;
@@ -636,7 +634,7 @@ void MainWindow::saveConfig() {
 
 // ==================== 关窗拦截 ====================
 void MainWindow::closeEvent(QCloseEvent *event) {
-    // 检测进行中先问一声（对应 Python eventFilter 里的 Close 处理）
+    // 如果正在检测就弹窗确认
     if (m_detectingUi) {
         const auto ret = QMessageBox::question(this, windowTitle(),
                 "检测正在进行，确定停止并退出吗？",
@@ -647,7 +645,7 @@ void MainWindow::closeEvent(QCloseEvent *event) {
         }
     }
     saveConfig();
-    m_Detection->StopThread();   // 通知线程退出
+    m_Detection->StopThread();   // 通知线程退出并等它收尾
     m_Detection->wait();         // 等它收完尾（最多约 200ms）
     event->accept();
 }
