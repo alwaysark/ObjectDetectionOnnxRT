@@ -44,16 +44,27 @@ std::vector<DetectionResult> YoloDetector::detect(cv::Mat& frame) {
 
         // ===== 推理 =====
         m_net.setInput(blob);
-        output = m_net.forward();          // [1, 25200, 7]
+        output = m_net.forward();
     } catch (const cv::Exception& e) {
         return results;                    // 推理出错：放弃本帧，不逃逸到调用方
     }
 
-    // v6.0 导出的模型有 4 个输出（3 个检测头中间结果 + 1 个最终拼接结果）。
-    // forward() 不带名字时返回拓扑序第一个——那是 [1,3,20,20,7] 的中间结果，
-    // 不是我们要的 [1,25200,7] 最终输出。这里检测形状：不对就换按名字取"output"。
-    if (output.size[2] != 1 || output.size[3] > 100) {   // [1,25200,7] 的 size[2]=1
-        // 不是 [1,N,C] 布局 → 用最终输出层名重取
+    // ===== 多输出模型防御：确认拿到的是"最终候选表" =====
+    // 实测（探针）：v6.0 导出的 best.onnx 有 4 个输出层，无名字 forward() 返回拓扑序
+    // 第一个——P5 检测头中间结果 [1,3,20,20,7]（dims=5），不是我们要的 [1,25200,7]。
+    // 终输出指纹（四个条件同时满足才认）：
+    //   dims==3          排掉一切中间层（实测 dims=5）
+    //   size[0]==1       batch 恒为 1
+    //   size[2]==类别数+5 末列 = 4框 + 1obj + nc类别分（换模型自适应，不写死 7）
+    //   size[1]>1000     行数是候选量级（25200），不是格子量级（80/40/20）
+    const bool isFinal =
+            output.dims == 3
+            && output.size[0] == 1
+            && output.size[2] == static_cast<int>(m_classNames.size()) + 5
+            && output.size[1] > 1000;
+    if (!isFinal) {
+        // 不是终输出 → 按名字重取：优先精确匹配 "output"（YOLOv5 导出的固定名），
+        // 找不到就取输出列表末尾（拓扑序中最终拼接结果天然在最后）
         std::string bestName;
         for (const cv::String& n : m_net.getUnconnectedOutLayersNames())
             if (n == "output") { bestName = n; break; }
