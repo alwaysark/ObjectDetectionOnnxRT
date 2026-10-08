@@ -197,7 +197,7 @@ void MainWindow::buildUi() {
     ShuChuYelayout -> addRow(layout_Vido);
 
     m_ZhiXinDu = new QDoubleSpinBox;
-    m_ZhiXinDu->setRange(0.01, 1.00);
+    m_ZhiXinDu->setRange(0.00, 1.00);
     m_ZhiXinDu->setSingleStep(0.05);
     m_ZhiXinDu->setDecimals(2);
     m_ZhiXinDu->setValue(0.35);
