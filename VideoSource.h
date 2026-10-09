@@ -39,6 +39,8 @@ class VideoSource {
 public:
     VideoSource() = default;
 
+    ~VideoSource();
+
     // 线程 + 锁成员让这个类天生不可拷贝，显式删除防止误用
     VideoSource(const VideoSource&) = delete;
     VideoSource& operator=(const VideoSource&) = delete;
